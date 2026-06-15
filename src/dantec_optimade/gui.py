@@ -2,8 +2,8 @@ import os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
-from nomad_entry import fetch_materials_by_element
-from raven_data_access import RavenDBClient
+from .optimade_client import fetch_structures
+from .raven_data_access import RavenDBClient
 
 elements_list = ["H", "He",
                  "Li", "Be", "B", "C", "N", "O", "F", "Ne",
@@ -88,15 +88,15 @@ def search_materials():
     except ValueError:
         page_size = 5
 
-    records = fetch_materials_by_element(
-        element=element,
-        page_size=page_size
+    records = fetch_structures(
+        filter_str=f'elements HAS "{element}"',
+        max_results=page_size,
     )
 
     for m in records:
         row_id = table.insert(
             "", "end",
-            values=("☐", m["id"], m["date"], m["title"], m["elements"], m["authors"])
+            values=("☐", m["id"], m["date"], m["title"], ", ".join(m["elements"]), m["authors"])
         )
         record_map[row_id] = m  # store full dict
 

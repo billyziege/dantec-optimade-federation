@@ -1,0 +1,2 @@
+optimade[http_client]
+requests

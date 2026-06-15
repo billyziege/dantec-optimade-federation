@@ -54,11 +54,17 @@ class RavenDBClient:
 
         params = {'id': data['id']}
 
-        material_data = {'title': data['title'],
-                         'date': data['date'],
-                         'formula': data['formula'],
-                         'elements': data['elements'],
-                         'authors': data['authors']}
+        material_data = {
+            'provider': data['provider'],
+            'chemical_formula_reduced': data['chemical_formula_reduced'],
+            'chemical_formula_hill': data['chemical_formula_hill'],
+            'elements': data['elements'],
+            'nelements': data['nelements'],
+            'nsites': data['nsites'],
+            'dimension_types': data['dimension_types'],
+            'nperiodic_dimensions': data['nperiodic_dimensions'],
+            'last_modified': data['last_modified'],
+        }
 
         response = requests.put(self.docs_url, params=params, json=material_data, headers=self.headers)
 
@@ -81,11 +87,17 @@ class RavenDBClient:
 
             params = {'id': item['id']}
 
-            material_data = {'title': item['title'],
-                             'date': item['date'],
-                             'formula': item['formula'],
-                             'elements': item['elements'],
-                             'authors': item['authors']}
+            material_data = {
+                'provider': item['provider'],
+                'chemical_formula_reduced': item['chemical_formula_reduced'],
+                'chemical_formula_hill': item['chemical_formula_hill'],
+                'elements': item['elements'],
+                'nelements': item['nelements'],
+                'nsites': item['nsites'],
+                'dimension_types': item['dimension_types'],
+                'nperiodic_dimensions': item['nperiodic_dimensions'],
+                'last_modified': item['last_modified'],
+            }
 
             response = requests.put(self.docs_url, params=params, json=material_data, headers=self.headers)
 
