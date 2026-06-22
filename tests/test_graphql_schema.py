@@ -1,12 +1,12 @@
 """Tests for graphql_schema — derived from contracts/graphql_schema.md.
 
-Unit tests mock fetch_structures and _raven_singleton to verify resolver
-logic and schema contracts without requiring live services.
-Integration tests (marked) require live NOMAD and RavenDB endpoints.
+Unit tests mock fetch_structures to verify resolver logic and schema contracts
+without requiring live services.
+Integration tests (marked) require a live NOMAD endpoint.
 """
 
 from contextlib import contextmanager
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
 from strawberry.relay.utils import from_base64, to_base64
@@ -38,41 +38,26 @@ def _make_record(**overrides):
     return rec
 
 
-def _fake_raven(get_return=None):
-    raven = MagicMock()
-    raven.get_document.return_value = get_return
-    raven.insert_single_document.return_value = None
-    return raven
-
-
 def _global_id(raw_id: str) -> str:
     """Encode a raw node ID as a Relay global ID for Structure."""
     return to_base64("Structure", raw_id)
 
 
 @contextmanager
-def _mocks(fetch_return=None, raven=None):
-    """Patch both external dependencies for the duration of a with block."""
+def _mocks(fetch_return=None):
+    """Patch fetch_structures for the duration of a with block."""
     if fetch_return is None:
         fetch_return = []
-    if raven is None:
-        raven = _fake_raven()
     with patch(
-        "dantec_optimade.graphql_schema._raven_singleton", return_value=raven
-    ), patch(
         "dantec_optimade.graphql_schema.fetch_structures", return_value=fetch_return
     ):
-        yield raven
+        yield
 
 
-def _run(query, *, variables=None, fetch_return=None, cached=None, raven=None):
-    """Execute a GraphQL query against the schema with mocked dependencies."""
-    if raven is None:
-        raven = _fake_raven(get_return=cached)
-    if fetch_return is None:
-        fetch_return = []
+def _run(query, *, variables=None, fetch_return=None):
+    """Execute a GraphQL query against the schema with fetch_structures mocked."""
     ctx = {"_warnings": []}
-    with _mocks(fetch_return=fetch_return, raven=raven):
+    with _mocks(fetch_return=fetch_return or []):
         return schema.execute_sync(query, variable_values=variables, context_value=ctx)
 
 
@@ -406,26 +391,12 @@ class TestProviderMetadata:
         assert meta["entryId"] is None
 
     def test_non_nomad_provider_returns_generic_metadata(self):
-        # Use raven cache hit with a non-nomad record to bypass PROVIDER_URLS check
-        cached_record = _make_record(id="entry-x", provider="dantec")
-        raw_id = "dantec/entry-x"
-        global_id = _global_id(raw_id)
-        raven = _fake_raven(get_return=cached_record)
-        q = """
-        query ById($id: ID!) {
-          structure(id: $id) {
-            providerMetadata {
-              __typename
-              raw
-            }
-          }
-        }
-        """
-        ctx = {"_warnings": []}
-        with _mocks(fetch_return=[], raven=raven):
-            result = schema.execute_sync(q, variable_values={"id": global_id}, context_value=ctx)
+        # fetch_structures returns a record with a non-nomad provider field;
+        # providerMetadata dispatch is based on record["provider"], not the URL
+        record = _make_record(id="entry-x", provider="other")
+        result = _run(self._Q_TYPENAME, fetch_return=[record])
         assert result.errors is None
-        typename = result.data["structure"]["providerMetadata"]["__typename"]
+        typename = result.data["structures"]["edges"][0]["node"]["providerMetadata"]["__typename"]
         assert typename == "GenericProviderMetadata"
 
     def test_provider_metadata_raw_contains_full_record(self):
@@ -526,8 +497,7 @@ class TestCursorPagination:
         )
         # GraphQL inline variable replacement doesn't work; use variables
         ctx = {"_warnings": []}
-        raven = _fake_raven()
-        with _mocks(fetch_return=records_p2_all, raven=raven):
+        with _mocks(fetch_return=records_p2_all):
             result2 = schema.execute_sync(
                 "query P2($cur: String!) { structures(first: 2, after: $cur) { edges { node { id } } } }",
                 variable_values={"cur": end_cursor},
@@ -546,8 +516,7 @@ class TestCursorPagination:
 class TestProviderWarnings:
     def test_unknown_provider_key_generates_warning_in_extensions(self):
         ctx = {"_warnings": []}
-        raven = _fake_raven()
-        with _mocks(fetch_return=[], raven=raven):
+        with _mocks(fetch_return=[]):
             result = schema.execute_sync(
                 '{ structures(providers: ["bad-provider"]) { edges { node { id } } } }',
                 context_value=ctx,
@@ -565,72 +534,31 @@ class TestProviderWarnings:
         assert result.data["structures"]["edges"] == []
 
     def test_unreachable_provider_generates_warning(self):
-        from unittest.mock import patch as _patch
-
         ctx = {"_warnings": []}
-        raven = _fake_raven()
-        with _mocks(raven=raven):
-            with _patch(
-                "dantec_optimade.graphql_schema.fetch_structures",
-                side_effect=RuntimeError("connection refused"),
-            ):
-                result = schema.execute_sync(
-                    "{ structures { edges { node { id } } } }",
-                    context_value=ctx,
-                )
+        with patch(
+            "dantec_optimade.graphql_schema.fetch_structures",
+            side_effect=RuntimeError("connection refused"),
+        ):
+            result = schema.execute_sync(
+                "{ structures { edges { node { id } } } }",
+                context_value=ctx,
+            )
         assert result.errors is None
         warnings = (result.extensions or {}).get("warnings", [])
         assert any("unreachable" in w or "nomad" in w for w in warnings)
 
     def test_unreachable_provider_returns_empty_edges_not_error(self):
-        from unittest.mock import patch as _patch
-
         ctx = {"_warnings": []}
-        raven = _fake_raven()
-        with _mocks(raven=raven):
-            with _patch(
-                "dantec_optimade.graphql_schema.fetch_structures",
-                side_effect=RuntimeError("timeout"),
-            ):
-                result = schema.execute_sync(
-                    "{ structures { edges { node { id } } } }",
-                    context_value=ctx,
-                )
+        with patch(
+            "dantec_optimade.graphql_schema.fetch_structures",
+            side_effect=RuntimeError("timeout"),
+        ):
+            result = schema.execute_sync(
+                "{ structures { edges { node { id } } } }",
+                context_value=ctx,
+            )
         assert result.errors is None
         assert result.data["structures"]["edges"] == []
-
-
-# ---------------------------------------------------------------------------
-# Cache-aside — structures query
-# ---------------------------------------------------------------------------
-
-class TestCacheAsideStructures:
-    def test_cache_miss_inserts_record_into_raven(self):
-        record = _make_record(id="entry123")
-        raven = _fake_raven(get_return=None)
-        _run(_Q_STRUCTURES, fetch_return=[record], raven=raven)
-        raven.insert_single_document.assert_called_once_with(record)
-
-    def test_cache_hit_does_not_insert(self):
-        record = _make_record(id="entry123")
-        cached = _make_record(id="entry123", nsites=99)
-        raven = _fake_raven(get_return=cached)
-        _run(_Q_STRUCTURES, fetch_return=[record], raven=raven)
-        raven.insert_single_document.assert_not_called()
-
-    def test_cache_hit_cached_data_wins_on_merge(self):
-        record = _make_record(id="entry123", nsites=4)
-        cached = _make_record(id="entry123", nsites=99)
-        raven = _fake_raven(get_return=cached)
-        result = _run(_Q_STRUCTURES, fetch_return=[record], raven=raven)
-        node = result.data["structures"]["edges"][0]["node"]
-        assert node["nsites"] == 99
-
-    def test_raven_looked_up_by_record_id(self):
-        record = _make_record(id="entry123")
-        raven = _fake_raven(get_return=None)
-        _run(_Q_STRUCTURES, fetch_return=[record], raven=raven)
-        raven.get_document.assert_called_with("entry123")
 
 
 # ---------------------------------------------------------------------------
@@ -638,50 +566,19 @@ class TestCacheAsideStructures:
 # ---------------------------------------------------------------------------
 
 class TestStructureById:
-    def test_cache_hit_returns_structure_without_fetch(self):
-        cached = _make_record(id="entry123", provider="nomad")
-        global_id = _global_id("nomad/entry123")
-        raven = _fake_raven(get_return=cached)
-        ctx = {"_warnings": []}
-        with _mocks(fetch_return=[], raven=raven):
-            with patch("dantec_optimade.graphql_schema.fetch_structures") as mock_fetch:
-                mock_fetch.return_value = [cached]
-                result = schema.execute_sync(
-                    _Q_STRUCTURE_BY_ID, variable_values={"id": global_id}, context_value=ctx
-                )
-                # fetch_structures must NOT have been called (cache hit)
-                mock_fetch.assert_not_called()
-        assert result.errors is None
-        assert result.data["structure"]["provider"] == "nomad"
-
-    def test_cache_miss_calls_fetch_structures(self):
+    def test_fetch_structures_called_with_id_filter(self):
         record = _make_record(id="entry123", provider="nomad")
         global_id = _global_id("nomad/entry123")
-        raven = _fake_raven(get_return=None)
         ctx = {"_warnings": []}
-        with patch("dantec_optimade.graphql_schema._raven_singleton", return_value=raven):
-            with patch("dantec_optimade.graphql_schema.fetch_structures", return_value=[record]) as mock_fetch:
-                result = schema.execute_sync(
-                    _Q_STRUCTURE_BY_ID, variable_values={"id": global_id}, context_value=ctx
-                )
-                mock_fetch.assert_called_once()
-                args, kwargs = mock_fetch.call_args
-                assert 'entry123' in args[0]  # filter string contains the optimade id
-
+        with patch("dantec_optimade.graphql_schema.fetch_structures", return_value=[record]) as mock_fetch:
+            result = schema.execute_sync(
+                _Q_STRUCTURE_BY_ID, variable_values={"id": global_id}, context_value=ctx
+            )
+            mock_fetch.assert_called_once()
+            args, _ = mock_fetch.call_args
+            assert "entry123" in args[0]
         assert result.errors is None
         assert result.data["structure"]["provider"] == "nomad"
-
-    def test_cache_miss_inserts_into_raven(self):
-        record = _make_record(id="entry123", provider="nomad")
-        global_id = _global_id("nomad/entry123")
-        raven = _fake_raven(get_return=None)
-        ctx = {"_warnings": []}
-        with patch("dantec_optimade.graphql_schema._raven_singleton", return_value=raven):
-            with patch("dantec_optimade.graphql_schema.fetch_structures", return_value=[record]):
-                schema.execute_sync(
-                    _Q_STRUCTURE_BY_ID, variable_values={"id": global_id}, context_value=ctx
-                )
-        raven.insert_single_document.assert_called_once_with(record)
 
     def test_not_found_returns_null(self):
         global_id = _global_id("nomad/nonexistent")
@@ -715,10 +612,8 @@ class TestStructureById:
 
     def test_fetch_timeout_returns_null_with_warning(self):
         global_id = _global_id("nomad/entry123")
-        raven = _fake_raven(get_return=None)
         ctx = {"_warnings": []}
-        with patch("dantec_optimade.graphql_schema._raven_singleton", return_value=raven), \
-             patch("dantec_optimade.graphql_schema.fetch_structures",
+        with patch("dantec_optimade.graphql_schema.fetch_structures",
                    side_effect=TimeoutError("timed out")):
             result = schema.execute_sync(
                 _Q_STRUCTURE_BY_ID, variable_values={"id": global_id}, context_value=ctx
@@ -741,8 +636,7 @@ class TestWarningsExtension:
 
     def test_unknown_provider_warning_appears_in_extensions(self):
         ctx = {"_warnings": []}
-        raven = _fake_raven()
-        with _mocks(raven=raven):
+        with _mocks():
             result = schema.execute_sync(
                 '{ structures(providers: ["ghost"]) { edges { node { id } } } }',
                 context_value=ctx,

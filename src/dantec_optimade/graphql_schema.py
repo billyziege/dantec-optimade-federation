@@ -1,20 +1,18 @@
 from __future__ import annotations
 
 import base64
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import Annotated, Any, Iterable, NewType, Optional
+from typing import Any, Iterable, Optional
 
 import strawberry
 from strawberry import relay
 from strawberry.fastapi import GraphQLRouter
-from strawberry.relay.utils import from_base64, to_base64
+from strawberry.relay.utils import from_base64
 from strawberry.scalars import JSON
 from strawberry.types import Info
 
 from dantec_optimade.optimade_client import fetch_structures
-from dantec_optimade.raven_data_access import RavenDBClient
 
 
 # ── Provider registry ──────────────────────────────────────────────────────────
@@ -24,21 +22,6 @@ PROVIDER_URLS: dict[str, str] = {
 }
 
 DEFAULT_PROVIDERS = ["nomad"]
-
-
-# ── RavenDB singleton ──────────────────────────────────────────────────────────
-
-_raven: Optional[RavenDBClient] = None
-
-
-def _raven_singleton() -> RavenDBClient:
-    global _raven
-    if _raven is None:
-        _raven = RavenDBClient(
-            base_url=os.environ.get("RAVENDB_URL", "http://127.0.0.1:8080"),
-            database=os.environ.get("RAVENDB_DATABASE", "optimade"),
-        )
-    return _raven
 
 
 # ── ProviderMetadata interface + implementations ───────────────────────────────
@@ -145,16 +128,9 @@ class Structure(relay.Node):
         **kwargs: Any,
     ) -> Optional["Structure"]:
         provider, optimade_id = node_id.split("/", 1)
-        raven = _raven_singleton()
-
-        cached = raven.get_document(optimade_id)
-        if cached:
-            return _record_to_structure(cached)
-
         base_url = PROVIDER_URLS.get(provider)
         if base_url is None:
             return None
-
         records = fetch_structures(
             f'id = "{optimade_id}"',
             max_results=1,
@@ -162,10 +138,7 @@ class Structure(relay.Node):
         )
         if not records:
             return None
-
-        record = records[0]
-        raven.insert_single_document(record)
-        return _record_to_structure(record)
+        return _record_to_structure(records[0])
 
     @classmethod
     def resolve_nodes(
@@ -305,21 +278,8 @@ class Query:
 
         page_records = all_records[offset : offset + first]
 
-        # Cache-aside: populate RavenDB for each record
-        raven = _raven_singleton()
-        merged_records: list[dict] = []
-        for record in page_records:
-            doc_id = record.get("id", "")
-            cached = raven.get_document(doc_id)
-            if cached:
-                merged_records.append({**record, **cached})
-            else:
-                raven.insert_single_document(record)
-                merged_records.append(record)
-
-        # Build connection
         edges: list[StructureEdge] = []
-        for i, record in enumerate(merged_records):
+        for i, record in enumerate(page_records):
             structure = _record_to_structure(record)
             cursor = _encode_cursor(offset + i + 1)
             edges.append(StructureEdge(node=structure, cursor=cursor))
@@ -345,11 +305,6 @@ class Query:
         ctx = info.context if isinstance(info.context, dict) else {}
         warnings: list[str] = ctx.get("_warnings", [])
 
-        raven = _raven_singleton()
-        cached = raven.get_document(optimade_id)
-        if cached:
-            return _record_to_structure(cached)
-
         base_url = PROVIDER_URLS.get(provider)
         if base_url is None:
             return None
@@ -367,9 +322,7 @@ class Query:
         if not records:
             return None
 
-        record = records[0]
-        raven.insert_single_document(record)
-        return _record_to_structure(record)
+        return _record_to_structure(records[0])
 
 
 # ── Schema and router ──────────────────────────────────────────────────────────
