@@ -59,7 +59,8 @@ def _run(filter_str, items, base_url=NOMAD_BASE_URL, max_results=None):
     raw = _fake_raw(filter_str, {base_url: {"data": items}})
     mock_client = MagicMock()
     mock_client.get.return_value = raw
-    with patch("dantec_optimade.optimade_client.OptimadeClient", return_value=mock_client):
+    with patch("dantec_optimade.optimade_client.OptimadeClient", return_value=mock_client), \
+         patch.dict("dantec_optimade.optimade_client._client_cache", {}, clear=True):
         from dantec_optimade.optimade_client import fetch_structures
         return fetch_structures(
             filter_str,
@@ -150,7 +151,8 @@ class TestEmptyAndEdgeCases:
         raw = {"structures": {}}
         mock_client = MagicMock()
         mock_client.get.return_value = raw
-        with patch("dantec_optimade.optimade_client.OptimadeClient", return_value=mock_client):
+        with patch("dantec_optimade.optimade_client.OptimadeClient", return_value=mock_client), \
+             patch.dict("dantec_optimade.optimade_client._client_cache", {}, clear=True):
             from dantec_optimade.optimade_client import fetch_structures
             result = fetch_structures('elements HAS "Xy"', base_urls=[NOMAD_BASE_URL])
         assert result == []
@@ -171,7 +173,8 @@ class TestMultiProvider:
         })
         mock_client = MagicMock()
         mock_client.get.return_value = raw
-        with patch("dantec_optimade.optimade_client.OptimadeClient", return_value=mock_client):
+        with patch("dantec_optimade.optimade_client.OptimadeClient", return_value=mock_client), \
+             patch.dict("dantec_optimade.optimade_client._client_cache", {}, clear=True):
             from dantec_optimade.optimade_client import fetch_structures
             records = fetch_structures(filter_str, base_urls=[NOMAD_BASE_URL, other_url])
         assert len(records) == 2
@@ -188,7 +191,8 @@ class TestMultiProvider:
         })
         mock_client = MagicMock()
         mock_client.get.return_value = raw
-        with patch("dantec_optimade.optimade_client.OptimadeClient", return_value=mock_client):
+        with patch("dantec_optimade.optimade_client.OptimadeClient", return_value=mock_client), \
+             patch.dict("dantec_optimade.optimade_client._client_cache", {}, clear=True):
             from dantec_optimade.optimade_client import fetch_structures
             records = fetch_structures(filter_str, base_urls=[NOMAD_BASE_URL, other_url])
         id_to_provider = {r["id"]: r["provider"] for r in records}

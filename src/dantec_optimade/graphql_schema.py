@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Annotated, Any, Iterable, NewType, Optional
 
@@ -270,26 +271,37 @@ class Query:
                 raise strawberry.exceptions.GraphQLError("invalid cursor")
 
         filter_str = filter or ""
+        max_results = offset + first
 
-        # Per-provider fetch with warning accumulation
         ctx = info.context if isinstance(info.context, dict) else {}
         warnings: list[str] = ctx.get("_warnings", [])
-        all_records: list[dict] = []
 
+        # Resolve provider keys to URLs; warn for anything not in the registry
+        valid_providers: list[tuple[str, str]] = []
         for p in providers:
             base_url = PROVIDER_URLS.get(p)
             if base_url is None:
                 warnings.append(f"provider '{p}' is not configured and was skipped")
-                continue
-            try:
-                records = fetch_structures(
-                    filter_str,
-                    max_results=offset + first,
-                    base_urls=[base_url],
-                )
-                all_records.extend(records)
-            except Exception as exc:
-                warnings.append(f"provider '{p}' unreachable: {exc}")
+            else:
+                valid_providers.append((p, base_url))
+
+        # Fetch from all valid providers in parallel; collect per-provider warnings
+        all_records: list[dict] = []
+
+        def _fetch_one(base_url: str) -> list[dict]:
+            return fetch_structures(filter_str, max_results=max_results, base_urls=[base_url])
+
+        with ThreadPoolExecutor(max_workers=max(len(valid_providers), 1)) as executor:
+            future_to_provider = {
+                executor.submit(_fetch_one, url): p
+                for p, url in valid_providers
+            }
+            for future in as_completed(future_to_provider):
+                p = future_to_provider[future]
+                try:
+                    all_records.extend(future.result())
+                except Exception as exc:
+                    warnings.append(f"provider '{p}' unreachable: {exc}")
 
         page_records = all_records[offset : offset + first]
 
@@ -321,7 +333,7 @@ class Query:
         )
 
     @strawberry.field
-    def structure(self, id: strawberry.ID) -> Optional[Structure]:
+    def structure(self, info: Info, id: strawberry.ID) -> Optional[Structure]:
         try:
             type_name, raw_id = from_base64(id)
             if type_name != "Structure":
@@ -329,8 +341,11 @@ class Query:
             provider, optimade_id = raw_id.split("/", 1)
         except Exception:
             raise strawberry.exceptions.GraphQLError("malformed id")
-        raven = _raven_singleton()
 
+        ctx = info.context if isinstance(info.context, dict) else {}
+        warnings: list[str] = ctx.get("_warnings", [])
+
+        raven = _raven_singleton()
         cached = raven.get_document(optimade_id)
         if cached:
             return _record_to_structure(cached)
@@ -339,11 +354,16 @@ class Query:
         if base_url is None:
             return None
 
-        records = fetch_structures(
-            f'id = "{optimade_id}"',
-            max_results=1,
-            base_urls=[base_url],
-        )
+        try:
+            records = fetch_structures(
+                f'id = "{optimade_id}"',
+                max_results=1,
+                base_urls=[base_url],
+            )
+        except Exception as exc:
+            warnings.append(f"provider '{provider}' unreachable: {exc}")
+            return None
+
         if not records:
             return None
 

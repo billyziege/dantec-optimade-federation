@@ -713,6 +713,21 @@ class TestStructureById:
         assert result.errors is None
         assert result.data["structure"] is None
 
+    def test_fetch_timeout_returns_null_with_warning(self):
+        global_id = _global_id("nomad/entry123")
+        raven = _fake_raven(get_return=None)
+        ctx = {"_warnings": []}
+        with patch("dantec_optimade.graphql_schema._raven_singleton", return_value=raven), \
+             patch("dantec_optimade.graphql_schema.fetch_structures",
+                   side_effect=TimeoutError("timed out")):
+            result = schema.execute_sync(
+                _Q_STRUCTURE_BY_ID, variable_values={"id": global_id}, context_value=ctx
+            )
+        assert result.errors is None
+        assert result.data["structure"] is None
+        warnings = (result.extensions or {}).get("warnings", [])
+        assert any("nomad" in w and "unreachable" in w for w in warnings)
+
 
 # ---------------------------------------------------------------------------
 # WarningsExtension

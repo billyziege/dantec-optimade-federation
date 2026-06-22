@@ -1,3 +1,4 @@
+import os
 from urllib.parse import urlparse
 from typing import Optional
 
@@ -5,6 +6,25 @@ from optimade.client import OptimadeClient
 
 
 NOMAD_BASE_URL = "https://nomad-lab.eu/prod/v1/optimade"
+
+OPTIMADE_HTTP_TIMEOUT: float = float(os.environ.get("OPTIMADE_HTTP_TIMEOUT", "5.0"))
+
+# Cache OptimadeClient instances to avoid re-fetching /info on every call.
+# Keyed by (sorted url tuple, max_results) so each unique combination pays
+# the /info round trip exactly once.
+_client_cache: dict[tuple[tuple[str, ...], int], OptimadeClient] = {}
+
+
+def _get_client(base_urls: list[str], max_results: int) -> OptimadeClient:
+    key = (tuple(sorted(base_urls)), max_results)
+    if key not in _client_cache:
+        _client_cache[key] = OptimadeClient(
+            base_urls=base_urls,
+            max_results_per_provider=max_results,
+            silent=True,
+            http_timeout=OPTIMADE_HTTP_TIMEOUT,
+        )
+    return _client_cache[key]
 
 
 def fetch_structures(
@@ -23,12 +43,7 @@ def fetch_structures(
     if base_urls is None:
         base_urls = [NOMAD_BASE_URL]
 
-    client = OptimadeClient(
-        base_urls=base_urls,
-        max_results_per_provider=max_results,
-        silent=True,
-    )
-
+    client = _get_client(base_urls, max_results)
     raw = client.get(filter_str)
 
     records = []
