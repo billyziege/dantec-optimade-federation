@@ -4,8 +4,10 @@ version = "0.1.0"
 description = "OPTIMADE federation layer for DANTEc and NOMAD unified search"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi[standard]>=0.138.0",
     "optimade[client,http-client]",
     "requests",
+    "strawberry-graphql[fastapi]>=0.319.0",
 ]
 
 [build-system]
