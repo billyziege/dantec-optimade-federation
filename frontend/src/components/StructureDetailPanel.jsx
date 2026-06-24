@@ -7,7 +7,7 @@ import {
   SheetTitle,
 } from './ui/sheet';
 import { warningsStore } from '../lib/warningsStore';
-import StructureViewer from './StructureViewer';
+import StructureViewer, { LATTICE_COLORS, LATTICE_LABELS } from './StructureViewer';
 
 const StructureDetail_structure = graphql`
   fragment StructureDetail_structure on Structure {
@@ -49,6 +49,13 @@ const StructureDetailQuery = graphql`
     }
   }
 `;
+
+function vecAngleDeg(v1, v2) {
+  const dot = v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2];
+  const m1 = Math.sqrt(v1[0]**2 + v1[1]**2 + v1[2]**2);
+  const m2 = Math.sqrt(v2[0]**2 + v2[1]**2 + v2[2]**2);
+  return (Math.acos(Math.min(1, Math.max(-1, dot / (m1 * m2)))) * 180 / Math.PI).toFixed(2);
+}
 
 function WarningBanner({ warnings }) {
   if (!warnings.length) return null;
@@ -179,6 +186,12 @@ function StructureDetailInner({ queryRef }) {
             <tbody>
               {structure.latticeVectors.map((row, i) => (
                 <tr key={i} className="border-t border-gray-100 first:border-0">
+                  <td
+                    className="pr-3 py-0.5 font-bold italic"
+                    style={{ color: LATTICE_COLORS[i] }}
+                  >
+                    {LATTICE_LABELS[i]}
+                  </td>
                   {row.map((val, j) => (
                     <td key={j} className="pr-4 py-0.5 text-right text-gray-700">
                       {val.toFixed(5)}
@@ -188,6 +201,11 @@ function StructureDetailInner({ queryRef }) {
               ))}
             </tbody>
           </table>
+          <div className="mt-2 flex gap-4 text-xs font-mono text-gray-500">
+            <span>α = {vecAngleDeg(structure.latticeVectors[1], structure.latticeVectors[2])}°</span>
+            <span>β = {vecAngleDeg(structure.latticeVectors[0], structure.latticeVectors[2])}°</span>
+            <span>γ = {vecAngleDeg(structure.latticeVectors[0], structure.latticeVectors[1])}°</span>
+          </div>
         </section>
       )}
 
