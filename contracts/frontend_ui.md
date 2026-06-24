@@ -18,6 +18,7 @@ frontend/
   src/
     __generated__/          # Relay compiler output — do not edit
     components/
+      ElementTile.jsx             # single periodic table cell
       PeriodicTableSelector.jsx
       FilterBar.jsx
       StructureCard.jsx
@@ -58,6 +59,15 @@ frontend/
 Original statistics/aggregation features and NOMAD search context coupling
 are not included.
 
+**Data file modifications (`elementData.json`):**
+- Element 119 (Uue / Ununennium) is removed. It is a hypothetical undiscovered
+  element with no experimental data in any materials database and no valid
+  search results; including it is misleading.
+- Lanthanide `ypos` remapped 9 → 8; actinide `ypos` remapped 10 → 9.
+  The upstream file used ypos 9/10 for f-block rows, but the layout formula
+  expects 8/9. Remapping the data avoids changing the formula and keeps the
+  code correct as originally written.
+
 **Props:**
 ```ts
 selectedElements: Set<string>           // chemical symbol strings, e.g. {"Fe","O"}
@@ -72,13 +82,24 @@ onModeChange: (mode: 'has_all' | 'has_any' | 'exact') => void
 - `mode` is one of the three defined string literals
 
 **Postconditions:**
-- Renders a responsive SVG grid of 118 element tiles laid out by `xpos`/`ypos`
+- Renders a grid of 118 `ElementTile` components laid out by `xpos`/`ypos`
   from `elementData.json`; grid fills its container width
-- Selected elements are visually distinct from unselected elements
-- Clicking an unselected element adds its symbol to `selectedElements` and calls
+- Container uses `aspect-ratio: 18 / 9.5` (not the padding-bottom trick);
+  `position: relative` on the container with tiles absolutely positioned inside
+- Clicking an unselected tile adds its symbol to `selectedElements` and calls
   `onSelectionChange` with the new set
-- Clicking a selected element removes its symbol and calls `onSelectionChange`
+- Clicking a selected tile removes its symbol and calls `onSelectionChange`
   with the new set
+- **Placeholder tiles** at `(xpos=3, ypos=6)` and `(xpos=3, ypos=7)` — the
+  visual gaps between Ba→Hf and Ra→Rf respectively — render `*` and `**`.
+  They are non-interactive (no `onClick`, no hover state, no category background;
+  rendered in muted gray)
+- **F-block row labels** appear at the left edge of the lanthanide row (ypos=8)
+  and actinide row (ypos=9), reading `* lanthanides` and `** actinides`.
+  Labels are positioned absolutely, aligned to the left of those rows.
+- **Category legend** is rendered below the table: a flex-wrap row of swatches,
+  one per category present in `CATEGORY_BG`, each showing the category pastel
+  color and its human-readable label
 - A segmented control (toggle button group) renders the three modes with labels:
   - `has_all` → "Contains all"
   - `has_any` → "Contains any"
@@ -89,6 +110,68 @@ onModeChange: (mode: 'has_all' | 'has_any' | 'exact') => void
 
 **Error conditions:**
 - Unknown symbol in `selectedElements`: ignored (no tile highlighted)
+
+---
+
+## ElementTile
+
+**File:** `frontend/src/components/ElementTile.jsx`
+
+**Purpose:** Single cell in the periodic table grid. Owns its hover state
+internally. Communicates selection via ring (inset box-shadow) thickness rather
+than background color change, so the category pastel is always visible.
+
+**Props:**
+```ts
+symbol: string              // chemical symbol, e.g. "Fe"
+name: string                // full element name, e.g. "Iron"
+atomicNumber: number        // e.g. 26
+atomicWeight: number        // e.g. 55.845
+category: string            // key into CATEGORY_BG; unknown → bg-gray-50
+selected: boolean
+onClick: () => void
+style: React.CSSProperties  // absolute-position coordinates supplied by parent
+```
+
+**Visual states:**
+
+| Hovered | Selected | Ring               | Signal to user      |
+|---------|---------|--------------------|---------------------|
+| no      | no      | none               | idle                |
+| yes     | no      | 2 px, blue-400     | will select         |
+| no      | yes     | 4 px, blue-600     | selected            |
+| yes     | yes     | 2 px, blue-500     | will deselect       |
+
+The hover-over-selected ring (2 px) is intentionally thinner than the selected
+ring (4 px): the reduction in thickness signals that clicking will deselect.
+
+Rings are implemented via Tailwind `ring-*` utilities (inset box-shadow). Ring
+thickness changes produce no layout shift because the ring sits inside the border
+box and the tile is absolutely positioned.
+
+**Hover detail:**
+- The tile renders only the chemical symbol at all times.
+- On hover, a Radix UI `<Tooltip>` displays a floating card containing:
+  - Element name (e.g. "Iron")
+  - Atomic number (e.g. "Z = 26")
+  - Atomic weight (e.g. "55.845 u")
+- Tooltip `delayDuration` is set to 300 ms.
+
+**Postconditions:**
+- `onClick` is called on pointer click
+- `title` attribute is set to the element name (screen reader / OS tooltip fallback)
+- Category background pastel is always applied; it is never replaced by a
+  selection-state color
+
+**Explicitly deferred — disabled state:**
+Greying out elements that would return zero results for the current selection
+was considered and rejected for this pass. Implementing it requires a backend
+aggregation endpoint that returns per-element result counts — that endpoint does
+not exist in the current GraphQL schema. Do not add a `disabled` prop or any
+count-based visual logic to `ElementTile` until that endpoint is built.
+
+**Error conditions:**
+- Unknown `category` string: tile background defaults to `bg-gray-50`
 
 ---
 
@@ -114,8 +197,23 @@ string passed down to `StructuresPage`.
   Code must include a comment explaining this is intentional: alphabetical
   order ensures identical selections always produce identical filter strings,
   making query deduplication and caching reliable.
-- Calls `onFilterChange(filterString)` whenever `selectedElements` or `mode` changes
+- `onFilterChange` is **not** called on every element click or mode change.
+  The federation backend makes external OPTIMADE network calls; firing a query
+  on every interaction would produce wasted in-flight requests and a confusing
+  loading state while the user is still building their selection.
+- A **"Search" button** is rendered alongside the mode toggle. Clicking it calls
+  `onFilterChange(filterString)` with the current derived filter string.
+- The **Clear button** (visible when `selectedElements` is non-empty) resets
+  `selectedElements` to empty and calls `onFilterChange("")` immediately, without
+  requiring a separate Search click. Clearing is always an unambiguous intent.
+- Selection and mode state update immediately on interaction (visual feedback via
+  `PeriodicTableSelector` and `ElementTile` is instant); only the query is deferred.
 - Prop: `onFilterChange: (filter: string) => void`
+
+**Test note:** Existing `FilterBar` tests assert that `onChange` is called after
+each element click. Those tests must be updated: after clicking elements, tests
+must also click the Search button before asserting that `onFilterChange` was called.
+The Clear button tests remain valid as-is (Clear fires immediately).
 
 ---
 
