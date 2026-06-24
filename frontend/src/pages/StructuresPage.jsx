@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense, useState } from 'react';
 import { graphql, useQueryLoader, usePreloadedQuery } from 'react-relay';
 import FilterBar from '../components/FilterBar';
 import StructureList from '../components/StructureList';
@@ -56,11 +56,6 @@ function StructureListContainer({ queryRef, onSelectStructure }) {
 export default function StructuresPage() {
   const [queryRef, loadQuery] = useQueryLoader(StructuresQuery);
   const [selectedStructureId, setSelectedStructureId] = useState(null);
-
-  // Issue the default query on first mount (empty filter, first 10 results)
-  useEffect(() => {
-    loadQuery({ filter: '', first: 10 });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleFilterChange(filter) {
     // Re-issue from the first page every time the filter changes.

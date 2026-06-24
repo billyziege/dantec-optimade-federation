@@ -9,6 +9,37 @@ NOMAD_BASE_URL = "https://nomad-lab.eu/prod/v1/optimade"
 
 OPTIMADE_HTTP_TIMEOUT: float = float(os.environ.get("OPTIMADE_HTTP_TIMEOUT", "5.0"))
 
+# Standard OPTIMADE structure fields plus NOMAD private extensions.
+# response_fields must be exhaustive: servers return ONLY the requested fields
+# when this parameter is present.
+RESPONSE_FIELDS: list[str] = [
+    # Composition
+    "elements",
+    "nelements",
+    "chemical_formula_reduced",
+    "chemical_formula_hill",
+    "chemical_formula_descriptive",
+    # Geometry / periodicity
+    "nsites",
+    "dimension_types",
+    "nperiodic_dimensions",
+    "lattice_vectors",
+    "cartesian_site_positions",
+    # Species / sites
+    "species",
+    "species_at_sites",
+    # Symmetry (space_group_symbol not supported by NOMAD OPTIMADE endpoint)
+    "space_group_it_number",
+    # Provenance
+    "last_modified",
+    # NOMAD private extensions
+    "_nomad_entry_id",
+    "_nomad_upload_id",
+    "_nomad_archive_url",
+    "_nomad_program_name",
+    "_nomad_program_version",
+]
+
 # Cache OptimadeClient instances to avoid re-fetching /info on every call.
 # Keyed by (sorted url tuple, max_results) so each unique combination pays
 # the /info round trip exactly once.
@@ -44,7 +75,7 @@ def fetch_structures(
         base_urls = [NOMAD_BASE_URL]
 
     client = _get_client(base_urls, max_results)
-    raw = client.get(filter_str)
+    raw = client.get(filter_str, response_fields=RESPONSE_FIELDS)
 
     records = []
     for filter_results in raw.get("structures", {}).values():
@@ -52,23 +83,26 @@ def fetch_structures(
             provider = _provider_from_url(base_url)
             for item in response.get("data", []):
                 attrs = item.get("attributes", {})
-                formula = attrs.get("chemical_formula_reduced")
+                optimade_id = item.get("id")
                 last_modified = attrs.get("last_modified") or ""
+                # NOMAD's _nomad_entry_id extension is always null in practice;
+                # the top-level OPTIMADE id is the NOMAD entry id.
+                nomad_entry_id = attrs.get("_nomad_entry_id") or (
+                    optimade_id if provider == "nomad" else None
+                )
                 records.append({
-                    # OPTIMADE fields
-                    "id": item.get("id"),
+                    # All provider attributes (standard OPTIMADE + provider extensions)
+                    **attrs,
+                    # Top-level OPTIMADE fields not nested under attributes
+                    "id": optimade_id,
                     "provider": provider,
-                    "chemical_formula_reduced": formula,
-                    "chemical_formula_hill": attrs.get("chemical_formula_hill"),
-                    "elements": attrs.get("elements", []),
-                    "nelements": attrs.get("nelements"),
-                    "nsites": attrs.get("nsites"),
-                    "dimension_types": attrs.get("dimension_types"),
-                    "nperiodic_dimensions": attrs.get("nperiodic_dimensions"),
+                    # Resolved NOMAD entry id (overrides the always-null extension field)
+                    "_nomad_entry_id": nomad_entry_id,
+                    # Normalize None → "" for consistency
                     "last_modified": last_modified,
                     # GUI compatibility stubs — remove when gui.py is redesigned
-                    "formula": formula,
-                    "title": item.get("id"),
+                    "formula": attrs.get("chemical_formula_reduced"),
+                    "title": optimade_id,
                     "authors": "",
                     "date": last_modified[:10],
                 })

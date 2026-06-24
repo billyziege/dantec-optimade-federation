@@ -60,12 +60,13 @@ const nomadStructureResolvers = {
   },
 };
 
-// ── Loading state (full StructuresPage) ─────────────────────────────────────
+// ── Initial state (full StructuresPage) ─────────────────────────────────────
 
-test('StructuresPage shows loading text while initial query is in flight', async () => {
+test('StructuresPage shows no results before first search', () => {
   const env = createEnv();
   renderWithRelay(<StructuresPage />, env);
-  await screen.findByText(/loading structures/i);
+  expect(screen.queryByText(/loading structures/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/no structures found/i)).not.toBeInTheDocument();
 });
 
 // ── StructureCard rendering ──────────────────────────────────────────────────
@@ -173,19 +174,17 @@ test('sentinel (IntersectionObserver) registered when hasNextPage is true', asyn
 
 // ── Filter change (StructuresPage) ──────────────────────────────────────────
 
-test('selecting an element triggers a new Relay operation with the correct filter', async () => {
+test('selecting an element and clicking Search triggers a Relay operation with the correct filter', async () => {
   const user = userEvent.setup();
   const env = createEnv();
   renderWithRelay(<StructuresPage />, env);
 
-  // Two operations will be queued: the initial empty-filter one (from
-  // useEffect) and the filter-change one (from clicking Iron + Search).
   await user.click(screen.getByTitle('Iron'));
   await user.click(screen.getByRole('button', { name: /search/i }));
   await act(async () => {});
 
   const ops = env.mock.getAllOperations();
-  expect(ops.length).toBeGreaterThanOrEqual(2);
+  expect(ops.length).toBeGreaterThanOrEqual(1);
   const filterOp = ops.find(op => op.request.variables.filter === 'elements HAS ALL "Fe"');
   expect(filterOp).toBeDefined();
 });

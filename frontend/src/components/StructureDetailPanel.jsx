@@ -4,10 +4,10 @@ import {
   Sheet,
   SheetContent,
   SheetBody,
-  SheetHeader,
   SheetTitle,
 } from './ui/sheet';
 import { warningsStore } from '../lib/warningsStore';
+import StructureViewer from './StructureViewer';
 
 const StructureDetail_structure = graphql`
   fragment StructureDetail_structure on Structure {
@@ -83,6 +83,14 @@ function StructureDetailInner({ queryRef }) {
   const nomadUrl = nomadMeta?.entryId
     ? `https://nomad-lab.eu/prod/v1/gui/search/entries/entry/id/${nomadMeta.entryId}`
     : null;
+
+  const sites =
+    structure.speciesAtSites && structure.cartesianSitePositions
+      ? structure.speciesAtSites.map((species, i) => ({
+          species,
+          position: structure.cartesianSitePositions[i],
+        }))
+      : null;
   const date = structure.lastModified
     ? new Date(structure.lastModified).toLocaleString()
     : null;
@@ -183,20 +191,18 @@ function StructureDetailInner({ queryRef }) {
         </section>
       )}
 
-      {/* Sites */}
-      {structure.speciesAtSites && (
+      {/* 3D structure viewer */}
+      {sites && (
         <section>
           <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
-            Sites ({structure.speciesAtSites.length})
+            Sites ({sites.length})
           </h4>
-          <div className="text-xs text-gray-600 font-mono max-h-28 overflow-y-auto bg-gray-50 rounded p-2">
-            {structure.speciesAtSites.join('  ')}
-          </div>
+          <StructureViewer sites={sites} latticeVectors={structure.latticeVectors} />
         </section>
       )}
 
       {/* Provider metadata */}
-      {isNomad && nomadMeta && (
+      {isNomad && nomadMeta && (nomadMeta.programName || nomadMeta.archiveUrl) && (
         <section>
           <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
             NOMAD metadata
@@ -253,9 +259,7 @@ export default function StructureDetailPanel({ structureId, onClose }) {
   return (
     <Sheet open={structureId !== null} onOpenChange={open => !open && onClose()}>
       <SheetContent side="right">
-        <SheetHeader>
-          <SheetTitle>Structure detail</SheetTitle>
-        </SheetHeader>
+        <SheetTitle className="sr-only">Structure detail</SheetTitle>
         <SheetBody>
           {queryRef ? (
             <Suspense
