@@ -179,8 +179,9 @@ test('selecting an element triggers a new Relay operation with the correct filte
   renderWithRelay(<StructuresPage />, env);
 
   // Two operations will be queued: the initial empty-filter one (from
-  // useEffect) and the filter-change one (from clicking Iron).
+  // useEffect) and the filter-change one (from clicking Iron + Search).
   await user.click(screen.getByTitle('Iron'));
+  await user.click(screen.getByRole('button', { name: /search/i }));
   await act(async () => {});
 
   const ops = env.mock.getAllOperations();

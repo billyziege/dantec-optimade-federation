@@ -16,6 +16,7 @@ test('single element with default has_all mode', async () => {
   const onChange = vi.fn();
   const user = setup(onChange);
   await user.click(screen.getByTitle('Iron'));
+  await user.click(screen.getByRole('button', { name: /search/i }));
   expect(onChange).toHaveBeenLastCalledWith('elements HAS ALL "Fe"');
 });
 
@@ -25,6 +26,7 @@ test('two elements are sorted alphabetically regardless of click order', async (
   // Click O first, then Fe — result must still be Fe before O
   await user.click(screen.getByTitle('Oxygen'));
   await user.click(screen.getByTitle('Iron'));
+  await user.click(screen.getByRole('button', { name: /search/i }));
   expect(onChange).toHaveBeenLastCalledWith('elements HAS ALL "Fe","O"');
 });
 
@@ -33,6 +35,7 @@ test('deselecting all elements produces an empty string', async () => {
   const user = setup(onChange);
   await user.click(screen.getByTitle('Iron'));
   await user.click(screen.getByTitle('Iron')); // deselect
+  await user.click(screen.getByRole('button', { name: /search/i }));
   expect(onChange).toHaveBeenLastCalledWith('');
 });
 
@@ -44,6 +47,7 @@ test('switching to has_any mode changes filter verb', async () => {
   await user.click(screen.getByTitle('Iron'));
   await user.click(screen.getByTitle('Oxygen'));
   await user.click(screen.getByRole('radio', { name: 'Contains any' }));
+  await user.click(screen.getByRole('button', { name: /search/i }));
   expect(onChange).toHaveBeenLastCalledWith('elements HAS ANY "Fe","O"');
 });
 
@@ -53,6 +57,7 @@ test('exact mode produces HAS ALL … AND HAS ONLY …', async () => {
   await user.click(screen.getByTitle('Iron'));
   await user.click(screen.getByTitle('Oxygen'));
   await user.click(screen.getByRole('radio', { name: 'Exactly these' }));
+  await user.click(screen.getByRole('button', { name: /search/i }));
   expect(onChange).toHaveBeenLastCalledWith(
     'elements HAS ALL "Fe","O" AND elements HAS ONLY "Fe","O"'
   );
@@ -62,6 +67,7 @@ test('mode switch with empty selection produces empty string', async () => {
   const onChange = vi.fn();
   const user = setup(onChange);
   await user.click(screen.getByRole('radio', { name: 'Contains any' }));
+  await user.click(screen.getByRole('button', { name: /search/i }));
   expect(onChange).toHaveBeenLastCalledWith('');
 });
 
