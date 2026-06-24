@@ -157,7 +157,9 @@ class Structure(relay.Node):
 @strawberry.type
 class PageInfo:
     has_next_page: bool
+    has_previous_page: bool = False
     end_cursor: Optional[str] = None
+    start_cursor: Optional[str] = None
 
 
 @strawberry.type
@@ -285,11 +287,17 @@ class Query:
             edges.append(StructureEdge(node=structure, cursor=cursor))
 
         has_next = len(page_records) == first
+        start_cursor = edges[0].cursor if edges else None
         end_cursor = edges[-1].cursor if edges else None
 
         return StructureConnection(
             edges=edges,
-            page_info=PageInfo(has_next_page=has_next, end_cursor=end_cursor),
+            page_info=PageInfo(
+                has_next_page=has_next,
+                has_previous_page=offset > 0,
+                start_cursor=start_cursor,
+                end_cursor=end_cursor,
+            ),
         )
 
     @strawberry.field

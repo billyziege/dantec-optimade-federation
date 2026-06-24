@@ -1,5 +1,18 @@
 # Contract: raven_data_access
 
+**Status: DORMANT in this repo.**
+`RavenDBClient` is implemented (`src/dantec_optimade/raven_data_access.py`) and this
+contract accurately describes it, but the module is not wired into the federation layer.
+The original role (cache-aside above OPTIMADE) was removed when the team lead clarified
+that the federation layer should call OPTIMADE directly with no local cache.
+
+The intended future home for `RavenDBClient` is a separate DANTEc OPTIMADE *provider*
+endpoint (DANTEc serving its own ResearchActivity records via OPTIMADE), which is a
+different repo and a different problem. Until that work begins, this module is preserved
+here for reference only.
+
+---
+
 ## RavenDBClient.__init__
 
 **Preconditions:**
