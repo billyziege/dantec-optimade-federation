@@ -16,24 +16,39 @@ export default function FilterBar({ onFilterChange }) {
   const [selectedElements, setSelectedElements] = useState(new Set());
   const [mode, setMode] = useState('has_all');
 
-  function handleSelectionChange(next) {
-    setSelectedElements(next);
-    onFilterChange(deriveFilter(next, mode));
+  function handleSearch() {
+    onFilterChange(deriveFilter(selectedElements, mode));
   }
 
-  function handleModeChange(newMode) {
-    setMode(newMode);
-    onFilterChange(deriveFilter(selectedElements, newMode));
+  function handleClear() {
+    setSelectedElements(new Set());
+    onFilterChange('');
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
+    <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
       <PeriodicTableSelector
         selectedElements={selectedElements}
-        onSelectionChange={handleSelectionChange}
+        onSelectionChange={setSelectedElements}
         mode={mode}
-        onModeChange={handleModeChange}
+        onModeChange={setMode}
       />
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSearch}
+          className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+        >
+          Search
+        </button>
+        {selectedElements.size > 0 && (
+          <button
+            onClick={handleClear}
+            className="text-xs text-gray-400 hover:text-gray-700 underline"
+          >
+            Clear ({selectedElements.size})
+          </button>
+        )}
+      </div>
     </div>
   );
 }

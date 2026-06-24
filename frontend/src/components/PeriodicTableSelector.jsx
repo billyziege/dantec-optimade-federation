@@ -5,6 +5,8 @@
 import React from 'react';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import elementData from '../data/elementData.json';
+import { CATEGORY_BG } from './ElementTile';
+import ElementTile from './ElementTile';
 import { cn } from '../lib/utils';
 
 const elements = elementData.elements;
@@ -27,25 +29,27 @@ function tileStyle(xpos, ypos) {
   };
 }
 
-// Pastel backgrounds by category — for quick visual orientation only
-const CATEGORY_BG = {
-  'diatomic nonmetal': 'bg-emerald-100',
-  'noble gas': 'bg-purple-100',
-  'alkali metal': 'bg-red-100',
-  'alkaline earth metal': 'bg-orange-100',
-  'metalloid': 'bg-teal-100',
-  'polyatomic nonmetal': 'bg-green-200',
-  'post-transition metal': 'bg-blue-100',
-  'transition metal': 'bg-yellow-100',
-  'lanthanide': 'bg-pink-100',
-  'actinide': 'bg-rose-100',
-};
+// Placeholder tiles for the lanthanide/actinide gap in the main table rows
+const PLACEHOLDERS = [
+  { xpos: 3, ypos: 6, label: '*'  },
+  { xpos: 3, ypos: 7, label: '**' },
+];
+
+// F-block row labels rendered in the empty xpos=1..3 area of the f-block rows
+const FBLOCK_LABELS = [
+  { ypos: 8, text: '* lanthanides' },
+  { ypos: 9, text: '** actinides'  },
+];
 
 const MODE_OPTIONS = [
   { value: 'has_all', label: 'Contains all' },
   { value: 'has_any', label: 'Contains any' },
   { value: 'exact',   label: 'Exactly these' },
 ];
+
+function categoryLabel(key) {
+  return key.replace(/\b\w/g, c => c.toUpperCase());
+}
 
 export default function PeriodicTableSelector({
   selectedElements,
@@ -88,47 +92,63 @@ export default function PeriodicTableSelector({
             </ToggleGroup.Item>
           ))}
         </ToggleGroup.Root>
-        {selectedElements.size > 0 && (
-          <button
-            onClick={() => onSelectionChange(new Set())}
-            className="text-xs text-gray-400 hover:text-gray-700 underline"
-          >
-            Clear ({selectedElements.size})
-          </button>
-        )}
       </div>
 
-      {/* Periodic table grid
-          Container uses the padding-bottom trick to establish a fixed aspect ratio
-          so tiles can be sized with percentage heights.
-          Aspect ratio = COLS : TOTAL_ROWS = 18 : 9.5 */}
+      {/* Periodic table grid.
+          aspect-ratio replaces the old padding-bottom trick; tiles are
+          absolutely positioned inside the relative container. */}
       <div
         className="relative w-full"
-        style={{ paddingBottom: `${(TOTAL_ROWS / COLS) * 100}%` }}
+        style={{ aspectRatio: '18 / 9.5' }}
       >
-        {elements.map(el => {
-          const selected = selectedElements.has(el.symbol);
-          const catBg = CATEGORY_BG[el.category] ?? 'bg-gray-50';
+        {elements.map(el => (
+          <ElementTile
+            key={el.symbol}
+            symbol={el.symbol}
+            name={el.name}
+            atomicNumber={el.number}
+            atomicWeight={el.atomic_mass}
+            category={el.category}
+            selected={selectedElements.has(el.symbol)}
+            onClick={() => handleTileClick(el.symbol)}
+            style={tileStyle(el.xpos, el.ypos)}
+          />
+        ))}
+
+        {/* Placeholder * / ** tiles for Ba→Hf and Ra→Rf gaps in the main table */}
+        {PLACEHOLDERS.map(({ xpos, ypos, label }) => (
+          <div
+            key={label}
+            className="absolute flex items-center justify-center text-xs text-gray-400 border border-gray-100 bg-gray-50 select-none"
+            style={tileStyle(xpos, ypos)}
+          >
+            {label}
+          </div>
+        ))}
+
+        {/* F-block row labels in the empty columns 1–3 of the lanthanide/actinide rows */}
+        {FBLOCK_LABELS.map(({ ypos, text }) => {
+          const s = tileStyle(1, ypos);
           return (
-            <button
-              key={el.symbol}
-              onClick={() => handleTileClick(el.symbol)}
-              title={el.name}
-              className={cn(
-                'absolute flex items-center justify-center p-0 overflow-hidden',
-                'border transition-colors focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-400',
-                selected
-                  ? 'bg-blue-500 text-white border-blue-600 z-10'
-                  : `${catBg} text-gray-800 border-gray-200 hover:border-blue-400 hover:z-10`
-              )}
-              style={tileStyle(el.xpos, el.ypos)}
+            <div
+              key={text}
+              className="absolute flex items-center text-xs text-gray-400 select-none overflow-hidden"
+              style={{ ...s, width: `${(3 / COLS) * 100}%` }}
             >
-              <span className="text-xs font-medium leading-none select-none">
-                {el.symbol}
-              </span>
-            </button>
+              {text}
+            </div>
           );
         })}
+      </div>
+
+      {/* Category legend */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {Object.entries(CATEGORY_BG).map(([key, bg]) => (
+          <div key={key} className="flex items-center gap-1">
+            <div className={cn('w-3 h-3 rounded-sm border border-gray-200 flex-shrink-0', bg)} />
+            <span className="text-xs text-gray-600">{categoryLabel(key)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
