@@ -1,0 +1,77 @@
+"""Date with time (isoformat)"""
+scalar DateTime
+
+type GenericProviderMetadata implements ProviderMetadata {
+  raw: JSON!
+}
+
+"""
+The JSON scalar type represents JSON values as specified by ECMA-404.
+"""
+scalar JSON
+
+"""An object with a Globally Unique ID"""
+interface Node {
+  """The Globally Unique ID of this object"""
+  id: ID!
+}
+
+type NomadMetadata implements ProviderMetadata {
+  raw: JSON!
+  uploadId: String
+  entryId: String
+  archiveUrl: String
+  programName: String
+  programVersion: String
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  endCursor: String
+  startCursor: String
+}
+
+interface ProviderMetadata {
+  raw: JSON!
+}
+
+type Query {
+  structures(filter: String, providers: [String!], first: Int, after: String): StructureConnection!
+  structure(id: ID!): Structure
+  # node and nodes are required by the Relay compiler for global object identification;
+  # not yet implemented on the server but listed here for schema completeness.
+  node(id: ID!): Node
+  nodes(ids: [ID!]!): [Node]!
+}
+
+type Structure implements Node {
+  """The Globally Unique ID of this object"""
+  id: ID!
+  provider: String!
+  elements: [String!]
+  nelements: Int
+  chemicalFormulaReduced: String
+  chemicalFormulaHill: String
+  nsites: Int
+  nperiodicDimensions: Int
+  dimensionTypes: [Int!]
+  lastModified: DateTime
+  latticeVectors: [[Float!]!]
+  cartesianSitePositions: [[Float!]!]
+  spaceGroupSymbol: String
+  spaceGroupItNumber: Int
+  species: JSON
+  speciesAtSites: [String!]
+  providerMetadata: ProviderMetadata
+}
+
+type StructureConnection {
+  edges: [StructureEdge!]!
+  pageInfo: PageInfo!
+}
+
+type StructureEdge {
+  node: Structure!
+  cursor: String!
+}

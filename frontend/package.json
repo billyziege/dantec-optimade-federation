@@ -1,0 +1,41 @@
+{
+  "name": "dantec-optimade-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "relay-compiler && vite build",
+    "relay": "relay-compiler",
+    "preview": "vite preview",
+    "test": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.2",
+    "@radix-ui/react-toggle": "^1.1.0",
+    "@radix-ui/react-toggle-group": "^1.1.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.400.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-relay": "^21.0.0",
+    "relay-runtime": "^21.0.0",
+    "tailwind-merge": "^2.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.6",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@vitest/coverage-v8": "^2.0.5",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "babel-plugin-relay": "^21.0.0",
+    "jsdom": "^24.1.1",
+    "postcss": "^8.4.39",
+    "relay-compiler": "^21.0.0",
+    "relay-test-utils": "^21.0.0",
+    "tailwindcss": "^3.4.4",
+    "vite": "^5.3.3",
+    "vitest": "^2.0.5"
+  }
+}
