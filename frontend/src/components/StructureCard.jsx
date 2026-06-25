@@ -27,13 +27,21 @@ function buildNomadUrl(entryId) {
 
 function BookmarkIcon({ filled }) {
   return (
-    <svg viewBox="0 0 20 20" className="w-4 h-4" aria-hidden="true">
+    <svg viewBox="0 0 20 20" className="w-4 h-4 shrink-0" aria-hidden="true">
       {filled ? (
         <path fill="currentColor" d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
       ) : (
         <path fill="none" stroke="currentColor" strokeWidth="1.5"
           d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
       )}
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="w-4 h-4 shrink-0" aria-hidden="true" fill="currentColor">
+      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
     </svg>
   );
 }
@@ -47,77 +55,75 @@ function StructureCardContent({ structure, onClick, isSaved, onSaveToggle, onDel
     ? new Date(structure.lastModified).toLocaleDateString()
     : null;
 
-  const hasAction = onSaveToggle != null || onDelete != null;
-
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all relative"
+      className="bg-white rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all"
     >
-      {/* Top-right action: bookmark toggle (Search tab) or delete (Saved tab) */}
-      {hasAction && (
-        <div className="absolute top-2 right-2">
-          {onSaveToggle != null && (
-            <button
-              type="button"
-              aria-label={isSaved ? 'Remove from Saved' : 'Save'}
-              onClick={e => { e.stopPropagation(); onSaveToggle(); }}
-              className={`p-1 rounded hover:bg-gray-100 transition-colors ${
-                isSaved ? 'text-blue-600' : 'text-gray-300 hover:text-gray-500'
-              }`}
+      <div className="flex items-center gap-2 mb-2">
+        {/* Save / Delete action pill — sits before the provider badge */}
+        {onSaveToggle != null && (
+          <button
+            type="button"
+            aria-label={isSaved ? 'Remove from Saved' : 'Save'}
+            onClick={e => { e.stopPropagation(); onSaveToggle(); }}
+            className={`group flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
+              isSaved
+                ? 'bg-green-200 text-green-800 hover:bg-green-300'
+                : 'bg-green-100 text-green-700 hover:bg-green-200'
+            }`}
+          >
+            <BookmarkIcon filled={isSaved} />
+            <span className="hidden group-hover:inline">
+              {isSaved ? 'Remove' : 'Save'}
+            </span>
+          </button>
+        )}
+        {onDelete != null && (
+          <button
+            type="button"
+            aria-label="Remove from Saved"
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+            className="group flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+          >
+            <TrashIcon />
+            <span className="hidden group-hover:inline">Remove</span>
+          </button>
+        )}
+
+        <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+          {structure.provider}
+        </span>
+        {date && <span className="text-xs text-gray-400">{date}</span>}
+      </div>
+
+      <p className="text-base font-semibold text-gray-900 truncate">{formula}</p>
+      <p className="text-sm text-gray-500 mt-0.5">
+        {structure.nelements} elements · {structure.nsites} sites
+      </p>
+      {structure.elements && structure.elements.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {structure.elements.map(el => (
+            <span
+              key={el}
+              className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
             >
-              <BookmarkIcon filled={isSaved} />
-            </button>
-          )}
-          {onDelete != null && (
-            <button
-              type="button"
-              aria-label="Remove from Saved"
-              onClick={e => { e.stopPropagation(); onDelete(); }}
-              className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-gray-100 transition-colors text-lg leading-none"
-            >
-              ×
-            </button>
-          )}
+              {el}
+            </span>
+          ))}
         </div>
       )}
-
-      {/* Main content — padded right when an action button is present */}
-      <div className={hasAction ? 'pr-8' : ''}>
-        <div className="flex items-center gap-2 mb-2">
-          <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
-            {structure.provider}
-          </span>
-          {date && <span className="text-xs text-gray-400">{date}</span>}
-        </div>
-        <p className="text-base font-semibold text-gray-900 truncate">{formula}</p>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {structure.nelements} elements · {structure.nsites} sites
-        </p>
-        {structure.elements && structure.elements.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {structure.elements.map(el => (
-              <span
-                key={el}
-                className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
-              >
-                {el}
-              </span>
-            ))}
-          </div>
-        )}
-        {nomadUrl && (
-          <a
-            href={nomadUrl}
-            target="_blank"
-            rel="noreferrer"
-            onClick={e => e.stopPropagation()}
-            className="mt-2 inline-block text-xs text-blue-600 hover:text-blue-800 hover:underline"
-          >
-            View in NOMAD ↗
-          </a>
-        )}
-      </div>
+      {nomadUrl && (
+        <a
+          href={nomadUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="mt-2 inline-block text-xs text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          View in NOMAD ↗
+        </a>
+      )}
     </div>
   );
 }
