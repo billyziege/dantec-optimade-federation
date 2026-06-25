@@ -55,7 +55,7 @@ export default function ElementTile({
             )}
             style={style}
           >
-            <span className="text-xs font-medium leading-none select-none text-gray-800">
+            <span className="text-[9px] font-medium leading-none select-none text-gray-800">
               {symbol}
             </span>
           </button>

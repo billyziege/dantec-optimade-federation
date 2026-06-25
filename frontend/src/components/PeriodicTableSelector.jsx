@@ -132,7 +132,7 @@ export default function PeriodicTableSelector({
           return (
             <div
               key={text}
-              className="absolute flex items-center text-xs text-gray-400 select-none overflow-hidden"
+              className="absolute flex items-center text-[8px] text-gray-400 select-none overflow-hidden"
               style={{ ...s, width: `${(3 / COLS) * 100}%` }}
             >
               {text}

@@ -23,7 +23,7 @@ export const StructureList_query = graphql`
   }
 `;
 
-export default function StructureList({ structures, onSelectStructure }) {
+export default function StructureList({ structures, onSelectStructure, savedIds = new Set(), onSaveToggle }) {
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment(
     StructureList_query,
     structures
@@ -62,6 +62,8 @@ export default function StructureList({ structures, onSelectStructure }) {
           key={edge.node.id}
           structure={edge.node}
           onClick={() => onSelectStructure(edge.node.id)}
+          isSaved={savedIds.has(edge.node.id)}
+          onSaveToggle={onSaveToggle}
         />
       ))}
       {isLoadingNext && (
